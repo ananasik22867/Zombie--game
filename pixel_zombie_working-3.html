@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pixel Zombie</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101510;font-family:monospace}
+canvas{display:block;background:#182018;image-rendering:pixelated}
+#menu{position:fixed;inset:0;background:#101510;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+h1{font-size:40px;margin:10px} button{font:20px monospace;padding:12px 30px;margin:6px;background:#333;color:white;border:3px solid #aaa;cursor:pointer}
+#shop{display:none;max-width:850px;max-height:65vh;overflow:auto;background:#181818;padding:12px}
+.item{display:inline-block;width:190px;min-height:120px;margin:5px;padding:10px;border:2px solid #555}
+.price{color:#ffd43b}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="menu">
+<h1>☠ PIXEL ZOMBIE ☠</h1>
+<p id="info">Монеты: 0 | Лучшая волна: 0</p>
+<button id="play">ИГРАТЬ</button>
+<button id="shopBtn">МАГАЗИН</button>
+<div id="shop"></div>
+</div>
+
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight; canvas.width=W;canvas.height=H;
+addEventListener("resize",()=>{W=innerWidth;H=innerHeight;canvas.width=W;canvas.height=H});
+
+let coins=+localStorage.getItem("coins")||0;
+let best=+localStorage.getItem("best")||0;
+let owned=JSON.parse(localStorage.getItem("owned")||"[true,false,false,false,false,false,false,false]");
+let game=false,keys={},zombies=[],shots=[],wave=0,total=0,spawned=0,killed=0,spawnTimer=0,lastShot=0,weapon=0;
+let player={x:0,y:0,hp:100,maxHp:100,speed:3.5};
+let mouse={x:W/2,y:H/2,down:false};
+
+const weapons=[
+["Лук",0,30,450,11,1],["Старый пистолет",50,40,350,13,1],
+["Револьвер",100,65,500,14,1],["Дробовик",175,30,800,10,6],
+["SMG",300,25,110,14,1],["Автомат",450,35,120,15,1],
+["Снайперка",800,220,1000,20,1],["Ракетница",1500,300,1200,9,1]
+];
+const classes=[
+["Новичок",50,120,3.5,1],["Стрелок",150,130,3.8,2],
+["Охотник",300,125,4.2,3],["Штурмовик",500,170,4,5],
+["Снайпер",800,120,3.6,6],["Тяжёлый",1200,230,3.1,5],
+["Ракетчик",1800,250,3,7],["Киборг",3000,330,4.2,7]
+];
+
+function save(){localStorage.setItem("coins",coins);localStorage.setItem("best",best);localStorage.setItem("owned",JSON.stringify(owned));}
+function start(){
+ document.getElementById("menu").style.display="none";
+ player={x:W/2,y:H/2,hp:100,maxHp:100,speed:3.5};
+ for(let i=0;i<classes.length;i++)if(localStorage.getItem("class"+i)==="1"){player.hp=player.maxHp=classes[i][2];player.speed=classes[i][3];weapon=classes[i][4];}
+ zombies=[];shots=[];wave=0;game=true;nextWave();
+}
+function nextWave(){wave++;total=5+wave*4;spawned=0;killed=0;spawnTimer=0;if(wave>best){best=wave;save();}}
+function spawn(){
+ let s=Math.floor(Math.random()*4),x,y;
+ if(s===0){x=-30;y=Math.random()*H} if(s===1){x=W+30;y=Math.random()*H}
+ if(s===2){x=Math.random()*W;y=-30} if(s===3){x=Math.random()*W;y=H+30}
+ let r=Math.random(),type="normal";
+ if(wave>=4&&r<.2)type="fast"; if(wave>=7&&r<.08)type="tank"; if(wave>=12&&r<.04)type="boss";
+ let d=type==="normal"?{hp:45+wave*7,sp:.75,sz:15,coin:1}:type==="fast"?{hp:80+wave*9,sp:1.7,sz:12,coin:4}:type==="tank"?{hp:300+wave*30,sp:.38,sz:27,coin:15}:{hp:1000+wave*80,sp:.45,sz:38,coin:50};
+ zombies.push({x,y,hp:d.hp,max:d.hp,sp:d.sp,sz:d.sz,coin:d.coin,type});spawned++;
+}
+function shoot(){
+ let w=weapons[weapon],now=performance.now(); if(now-lastShot<w[3])return;lastShot=now;
+ let a=Math.atan2(mouse.y-player.y,mouse.x-player.x);
+ for(let i=0;i<w[5];i++){let aa=a+(w[5]>1?(Math.random()-.5)*.6:0);shots.push({x:player.x,y:player.y,vx:Math.cos(aa)*w[4],vy:Math.sin(aa)*w[4],d:w[2],life:90,rocket:weapon===7});}
+}
+function update(){
+ if(!game)return;
+ let dx=(keys.w?1:0)-(keys.s?1:0),dy=(keys.d?1:0)-(keys.a?1:0);
+ if(dx||dy){let l=Math.hypot(dx,dy);player.x+=dx/l*player.speed;player.y+=dy/l*player.speed}
+ player.x=Math.max(15,Math.min(W-15,player.x));player.y=Math.max(15,Math.min(H-15,player.y));
+ if(mouse.down)shoot();
+ if(spawned<total&&--spawnTimer<=0){spawn();spawnTimer=Math.max(8,40-wave);}
+ for(const b of shots){b.x+=b.vx;b.y+=b.vy;b.life--;}
+ shots=shots.filter(b=>b.life>0&&b.x>-100&&b.x<W+100&&b.y>-100&&b.y<H+100);
+ for(const z of zombies){
+  let dx=player.x-z.x,dy=player.y-z.y,d=Math.hypot(dx,dy);
+  if(d>z.sz+12){z.x+=dx/d*z.sp;z.y+=dy/d*z.sp}else player.hp-=.12;
+ }
+ for(const b of shots)for(const z of zombies){if(b.life<=0)continue;let d=Math.hypot(b.x-z.x,b.y-z.y);if(d<z.sz+5){z.hp-=b.d;b.life=0;if(b.rocket)for(const q of zombies)if(Math.hypot(q.x-z.x,q.y-z.y)<90)q.hp-=100;break;}}
+ for(let i=zombies.length-1;i>=0;i--)if(zombies[i].hp<=0){coins+=zombies[i].coin;killed++;zombies.splice(i,1);save();}
+ if(spawned>=total&&zombies.length===0)nextWave();
+ if(player.hp<=0)end();
+}
+function draw(){
+ ctx.fillStyle="#182018";ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle="#202b20";
+ for(let x=0;x<W;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+ for(let y=0;y<H;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+ for(const z of zombies){
+  ctx.fillStyle=z.type==="normal"?"#55a83d":z.type==="fast"?"#b8d94c":z.type==="tank"?"#405a40":"#a83dcc";
+  ctx.fillRect(z.x-z.sz,z.y-z.sz,z.sz*2,z.sz*2);
+  ctx.fillStyle="#f33";ctx.fillRect(z.x-z.sz/2,z.y-z.sz/3,5,5);ctx.fillRect(z.x+z.sz/4,z.y-z.sz/3,5,5);
+  ctx.fillStyle="#222";ctx.fillRect(z.x-z.sz,z.y-z.sz-8,z.sz*2,5);
+  ctx.fillStyle="#e33";ctx.fillRect(z.x-z.sz,z.y-z.sz-8,z.sz*2*Math.max(0,z.hp/z.max),5);
+ }
+ for(const b of shots){ctx.fillStyle=weapon===7?"#ff7b30":"#ffe45c";ctx.fillRect(b.x-3,b.y-3,6,6)}
+ ctx.fillStyle="#4287ff";ctx.fillRect(player.x-12,player.y-12,24,24);
+ let a=Math.atan2(mouse.y-player.y,mouse.x-player.x);ctx.save();ctx.translate(player.x,player.y);ctx.rotate(a);ctx.fillStyle="#777";ctx.fillRect(8,-4,25,8);ctx.restore();
+ ctx.fillStyle="#fff";ctx.font="18px monospace";
+ ctx.fillText("ВОЛНА: "+wave,15,25);ctx.fillText("УБИТО: "+killed+"/"+total,15,48);
+ ctx.fillText("ОСТАЛОСЬ: "+(zombies.length+total-spawned),15,71);ctx.fillText("🪙 "+coins,15,94);
+ ctx.fillText("РЕКОРД: "+best,15,117);ctx.fillText("ОРУЖИЕ: "+weapons[weapon][0],15,140);
+ ctx.fillStyle="#222";ctx.fillRect(15,155,230,20);ctx.fillStyle="#35d957";ctx.fillRect(15,155,230*Math.max(0,player.hp/player.maxHp),20);
+}
+function end(){game=false;save();document.getElementById("menu").style.display="flex";document.getElementById("info").textContent="Волна: "+wave+" | Монеты: "+coins+" | Рекорд: "+best;}
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.key>="1"&&e.key<="8"){let i=+e.key-1;if(owned[i])weapon=i}});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+canvas.addEventListener("mousemove",e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+canvas.addEventListener("mousedown",()=>mouse.down=true);canvas.addEventListener("mouseup",()=>mouse.down=false);
+document.getElementById("play").onclick=start;
+
+function shop(){
+ const box=document.getElementById("shop");box.style.display=box.style.display==="block"?"none":"block";if(box.style.display!=="block")return;
+ box.innerHTML="<h2>🔫 ОРУЖИЕ</h2>";
+ weapons.forEach((w,i)=>{box.innerHTML+=`<div class="item"><b>${i+1}. ${w[0]}</b><br>Урон: ${w[2]}<br>Цена: <span class="price">${w[1]} 🪙</span><br><button onclick="buyW(${i})">${owned[i]?"КУПЛЕНО":"КУПИТЬ"}</button></div>`});
+ box.innerHTML+="<h2>🎖️ КЛАССЫ</h2>";
+ classes.forEach((c,i)=>{let have=localStorage.getItem("class"+i)==="1";box.innerHTML+=`<div class="item"><b>${c[0]}</b><br>HP: ${c[2]}<br>Цена: <span class="price">${c[1]} 🪙</span><br><button onclick="buyC(${i})">${have?"КУПЛЕНО":"КУПИТЬ"}</button></div>`});
+}
+function buyW(i){if(!owned[i]&&coins>=weapons[i][1]){coins-=weapons[i][1];owned[i]=true;save();shop();shop()}}
+function buyC(i){if(localStorage.getItem("class"+i)==="1")return;if(coins>=classes[i][1]){coins-=classes[i][1];localStorage.setItem("class"+i,"1");save();shop();shop()}}
+document.getElementById("shopBtn").onclick=shop;
+function loop(){update();draw();requestAnimationFrame(loop)} loop();
+</script>
+</body>
+</html>
