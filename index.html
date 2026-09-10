@@ -91,7 +91,10 @@ button{
  align-items:center;
  justify-content:center;
  text-align:center;
- z-index:1000;
+
+ /* ИСПРАВЛЕНО */
+ z-index:3000;
+ pointer-events:auto;
 }
 
 #deviceBox{
@@ -123,7 +126,10 @@ button{
  position:fixed;
  top:8px;
  right:8px;
- z-index:2000;
+
+ /* ИСПРАВЛЕНО */
+ z-index:100;
+
  font-size:13px;
  padding:5px 8px;
  margin:0;
@@ -137,10 +143,13 @@ button{
  position:fixed;
  top:8px;
  right:55px;
+
  z-index:100;
+
  font-size:16px;
  padding:7px 10px;
  margin:0;
+
  background:#333;
  color:white;
  border:3px solid #aaa;
@@ -1530,6 +1539,8 @@ function draw(){
   );
 
 
+  /* ГЛАЗА */
+
   ctx.fillStyle="#f33";
 
 
@@ -1548,6 +1559,8 @@ function draw(){
    5
   );
 
+
+  /* HP */
 
   ctx.fillStyle="#222";
 
@@ -2058,21 +2071,4 @@ function buyW(i){
 
   coins-=
    weapons[i][1];
-
-  owned[i]=true;
-
-  weapon=i;
-
-  save();
-
-  shop();
-
- }
-
-}
-
-
-function buyC(i){
-
- if(
-  lo
+ 
