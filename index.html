@@ -124,7 +124,15 @@ function shop(){
  box.innerHTML+="<h2>🎖️ КЛАССЫ</h2>";
  classes.forEach((c,i)=>{let have=localStorage.getItem("class"+i)==="1";box.innerHTML+=`<div class="item"><b>${c[0]}</b><br>HP: ${c[2]}<br>Цена: <span class="price">${c[1]} 🪙</span><br><button onclick="buyC(${i})">${have?"КУПЛЕНО":"КУПИТЬ"}</button></div>`});
 }
-function buyW(i){if(!owned[i]&&coins>=weapons[i][1]){coins-=weapons[i][1];owned[i]=true;save();shop();shop()}}
+function buyW(i){
+ if(!owned[i]&&coins>=weapons[i][1]){
+  coins-=weapons[i][1];
+  owned[i]=true;
+  weapon=i;
+  save();
+  shop();
+ }
+}
 function buyC(i){if(localStorage.getItem("class"+i)==="1")return;if(coins>=classes[i][1]){coins-=classes[i][1];localStorage.setItem("class"+i,"1");save();shop();shop()}}
 document.getElementById("shopBtn").onclick=shop;
 function loop(){update();draw();requestAnimationFrame(loop)} loop();
