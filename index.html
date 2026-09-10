@@ -73,7 +73,7 @@ function shoot(){
 }
 function update(){
  if(!game)return;
- let dx=(keys.w?1:0)-(keys.s?1:0),dy=(keys.d?1:0)-(keys.a?1:0);
+ let dx=(keys.d?1:0)-(keys.a?1:0),dy=(keys.s?1:0)-(keys.w?1:0);
  if(dx||dy){let l=Math.hypot(dx,dy);player.x+=dx/l*player.speed;player.y+=dy/l*player.speed}
  player.x=Math.max(15,Math.min(W-15,player.x));player.y=Math.max(15,Math.min(H-15,player.y));
  if(mouse.down)shoot();
