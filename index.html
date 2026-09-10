@@ -130,6 +130,23 @@ button{
 }
 
 
+/* КНОПКА СМЕНЫ ОРУЖИЯ */
+
+#changeWeapon{
+ display:none;
+ position:fixed;
+ top:8px;
+ right:55px;
+ z-index:100;
+ font-size:16px;
+ padding:7px 10px;
+ margin:0;
+ background:#333;
+ color:white;
+ border:3px solid #aaa;
+}
+
+
 /* ДЖОЙСТИК */
 
 #joystick{
@@ -180,6 +197,8 @@ button{
 <canvas id="game"></canvas>
 
 <button id="changeDevice">⚙️</button>
+
+<button id="changeWeapon">🔄 Оружие</button>
 
 
 <!-- ВЫБОР УСТРОЙСТВА -->
@@ -278,6 +297,9 @@ const stick=
 const changeDevice=
  document.getElementById("changeDevice");
 
+const changeWeapon=
+ document.getElementById("changeWeapon");
+
 
 function chooseDevice(type){
 
@@ -337,6 +359,8 @@ document.getElementById("phoneButton")
 changeDevice.onclick=()=>{
 
  deviceScreen.style.display="flex";
+
+ changeWeapon.style.display="none";
 
 };
 
@@ -518,6 +542,37 @@ function save(){
 
 
 /* =========================
+   СМЕНА ОРУЖИЯ НА ТЕЛЕФОНЕ
+========================= */
+
+function nextWeapon(){
+
+ if(device!=="phone")
+  return;
+
+ let start=weapon;
+
+ do{
+
+  weapon++;
+
+  if(weapon>=8)
+   weapon=0;
+
+ }while(
+  !owned[weapon] &&
+  weapon!==start
+ );
+
+}
+
+
+/* Кнопка */
+
+changeWeapon.onclick=nextWeapon;
+
+
+/* =========================
    СТАРТ
 ========================= */
 
@@ -527,6 +582,16 @@ function start(){
   .style.display="none";
 
  changeDevice.style.display="none";
+
+ if(device==="phone"){
+
+  changeWeapon.style.display="block";
+
+ }else{
+
+  changeWeapon.style.display="none";
+
+ }
 
  player={
 
@@ -1121,8 +1186,6 @@ function update(){
 
  if(device==="pc"){
 
-  /* ТОЛЬКО WASD */
-
   dx=
    (keys.d?1:0)-
    (keys.a?1:0);
@@ -1467,8 +1530,6 @@ function draw(){
   );
 
 
-  /* ГЛАЗА */
-
   ctx.fillStyle="#f33";
 
 
@@ -1487,8 +1548,6 @@ function draw(){
    5
   );
 
-
-  /* HP */
 
   ctx.fillStyle="#222";
 
@@ -1681,6 +1740,8 @@ function end(){
   .style.display="flex";
 
  changeDevice.style.display="block";
+
+ changeWeapon.style.display="none";
 
  document.getElementById("info")
   .textContent=
@@ -2014,55 +2075,4 @@ function buyW(i){
 function buyC(i){
 
  if(
-  localStorage.getItem(
-   "class"+i
-  )==="1"
- )
-  return;
-
-
- if(
-  coins>=classes[i][1]
- ){
-
-  coins-=
-   classes[i][1];
-
-  localStorage.setItem(
-   "class"+i,
-   "1"
-  );
-
-  save();
-
-  shop();
-
- }
-
-}
-
-
-document.getElementById("shopBtn")
- .onclick=shop;
-
-
-/* =========================
-   ИГРОВОЙ ЦИКЛ
-========================= */
-
-function loop(){
-
- update();
-
- draw();
-
- requestAnimationFrame(loop);
-
-}
-
-loop();
-
-</script>
-
-</body>
- </html>
+  lo
