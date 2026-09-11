@@ -1364,505 +1364,1517 @@ function update(){
         let b=bullets[i];
 
         b.x+=b.vx;
-        b.y+=b.vy;
+     /* =====================================================
+   СТРЕЛЬБА
+===================================================== */
 
-        /* Удаляем пулю за пределами экрана */
+function shoot(){
 
-        if(
-            b.x<-50 ||
-            b.x>canvas.width+50 ||
-            b.y<-50 ||
-            b.y>canvas.height+50
-        ){
-            bullets.splice(i,1);
-            continue;
-        }
+    if(!gameRunning)return;
 
-        /* Проверяем попадание в зомби */
+    const now=Date.now();
 
-        let hit=false;
+    const w=getWeapon();
 
-        for(let j=zombies.length-1;j>=0;j--){
+    if(now-lastShot<w.fireRate)return;
 
-            const z=zombies[j];
+    lastShot=now;
 
-            const distance=Math.hypot(
-                b.x-z.x,
-                b.y-z.y
-            );
 
-            if(distance<22+b.radius){
+    /* МЕЧ БОГА */
 
-                z.hp-=b.damage;
+    if(w.god){
 
-                particles.push({
-                    x:b.x,
-                    y:b.y,
-                    life:10,
-                    type:"hit"
-                });
+        godAttack();
 
-                hit=true;
+        return;
 
-                if(z.hp<=0){
-
-                    /* Монетка */
-
-                    coins+=
-                        5+
-                        Math.floor(
-                            Math.random()*6
-                        );
-
-                    particles.push({
-                        x:z.x,
-                        y:z.y,
-                        life:20,
-                        type:"coin"
-                    });
-
-                    zombies.splice(j,1);
-                    zombiesLeft--;
-
-                    save();
-                }
-
-                break;
-            }
-        }
-
-        if(hit){
-            bullets.splice(i,1);
-        }
     }
 
 
-    /* ЗОМБИ */
+    let target=null;
+
+    let best=Infinity;
+
+
+    /* Ищем ближайшего зомби */
 
     for(const z of zombies){
 
-        const angle=Math.atan2(
-            player.y-z.y,
-            player.x-z.x
+        const dx=
+            z.x-player.x;
+
+        const dy=
+            z.y-player.y;
+
+        const d=
+            Math.hypot(dx,dy);
+
+
+        if(
+            d<=w.range &&
+            d<best
+        ){
+
+            best=d;
+
+            target=z;
+
+        }
+
+    }
+
+
+    if(!target)return;
+
+
+    const angle=
+        Math.atan2(
+            target.y-player.y,
+            target.x-player.x
         );
 
-        const distance=Math.hypot(
-            player.x-z.x,
-            player.y-z.y
-        );
 
-        if(distance>28){
+    /* ДРОБОВИК */
 
-            z.x+=
-                Math.cos(angle)*
-                z.speed;
+    if(w.shotgun){
 
-            z.y+=
-                Math.sin(angle)*
-                z.speed;
+        for(
+            let i=-2;
+            i<=2;
+            i++
+        ){
 
-        }else{
+            const a=
+                angle+
+                i*.12;
 
-            if(Date.now()-z.attack>700){
 
-                player.hp-=z.damage;
-                z.attack=Date.now();
+            bullets.push({
 
-                particles.push({
-                    x:player.x,
-                    y:player.y,
-                    life:8,
-                    type:"damage"
-                });
+                x:player.x,
 
-                if(player.hp<=0){
+                y:player.y,
 
-                    player.hp=0;
+                vx:
+                    Math.cos(a)*11,
 
-                    gameOver();
+                vy:
+                    Math.sin(a)*11,
 
-                    return;
-                }
-            }
+                damage:
+                    getDamage(),
+
+                life:70
+
+            });
+
         }
+
     }
 
+    /* ОБЫЧНОЕ ОРУЖИЕ */
 
-    /* СЛЕДУЮЩАЯ ВОЛНА */
+    else{
 
-    if(zombies.length===0){
+        bullets.push({
 
-        wave++;
+            x:player.x,
 
-        spawnWave();
+            y:player.y,
+
+            vx:
+                Math.cos(angle)*11,
+
+            vy:
+                Math.sin(angle)*11,
+
+            damage:
+                getDamage(),
+
+            life:100
+
+        });
+
     }
 
-
-    /* ЧАСТИЦЫ */
-
-    for(let i=particles.length-1;i>=0;i--){
-
-        particles[i].life--;
-
-        if(particles[i].life<=0){
-
-            particles.splice(i,1);
-        }
-    }
-
-
-    updateHUD();
 }
 
 
-/* =========================
+
+/* =====================================================
+   МЕЧ БОГА
+===================================================== */
+
+function godAttack(){
+
+    if(!gameRunning)return;
+
+    if(
+        selectedWeapon!=="Меч Бога"
+    ){
+
+        return;
+
+    }
+
+
+    const now=Date.now();
+
+
+    if(
+        now-lastShot<600
+    ){
+
+        return;
+
+    }
+
+
+    lastShot=now;
+
+
+    const range=180;
+
+
+    for(
+        let i=zombies.length-1;
+        i>=0;
+        i--
+    ){
+
+        const z=
+            zombies[i];
+
+
+        const d=
+            Math.hypot(
+                z.x-player.x,
+                z.y-player.y
+            );
+
+
+        if(
+            d<=range
+        ){
+
+            z.hp-=
+                getDamage();
+
+
+            createParticles(
+                z.x,
+                z.y
+            );
+
+
+            if(
+                z.hp<=0
+            ){
+
+                killZombie(i);
+
+            }
+
+        }
+
+    }
+
+}
+
+
+
+/* =====================================================
+   УБИЙСТВО ЗОМБИ
+===================================================== */
+
+function killZombie(index){
+
+    const z=
+        zombies[index];
+
+
+    if(!z)return;
+
+
+    const reward=
+        Math.floor(
+            z.rewardMin+
+            Math.random()*
+            (
+                z.rewardMax-
+                z.rewardMin+
+                1
+            )
+        );
+
+
+    coins+=reward;
+
+
+    createParticles(
+        z.x,
+        z.y
+    );
+
+
+    zombies.splice(
+        index,
+        1
+    );
+
+
+    save();
+
+
+    /* Если все 100 зомби убиты —
+       начинается следующая волна */
+
+    if(
+        zombies.length===0
+    ){
+
+        setTimeout(
+            ()=>{
+
+                if(gameRunning){
+
+                    wave++;
+
+                    spawnWave();
+
+                }
+
+            },
+            600
+        );
+
+    }
+
+}
+
+
+
+/* =====================================================
+   ЧАСТИЦЫ
+===================================================== */
+
+function createParticles(
+    x,
+    y
+){
+
+    for(
+        let i=0;
+        i<8;
+        i++
+    ){
+
+        particles.push({
+
+            x:x,
+
+            y:y,
+
+            vx:
+                (Math.random()-.5)*5,
+
+            vy:
+                (Math.random()-.5)*5,
+
+            life:30
+
+        });
+
+    }
+
+}
+
+
+
+/* =====================================================
+   ОБНОВЛЕНИЕ ИГРЫ
+===================================================== */
+
+function update(){
+
+    if(!gameRunning)return;
+
+
+    let dx=0;
+
+    let dy=0;
+
+
+    /* ==========================
+       УПРАВЛЕНИЕ НА ПК
+    ========================== */
+
+    if(keys.w){
+        dy-=1;
+    }
+
+    if(keys.s){
+        dy+=1;
+    }
+
+    if(keys.a){
+        dx-=1;
+    }
+
+    if(keys.d){
+        dx+=1;
+    }
+
+
+    /* ==========================
+       УПРАВЛЕНИЕ ДЖОЙСТИКОМ
+    ========================== */
+
+    dx+=joyX;
+
+    dy+=joyY;
+
+
+    const len=
+        Math.hypot(dx,dy);
+
+
+    if(len>1){
+
+        dx/=len;
+
+        dy/=len;
+
+    }
+
+
+    /* ==========================
+       ДВИЖЕНИЕ ИГРОКА
+    ========================== */
+
+    player.x+=
+        dx*player.speed;
+
+    player.y+=
+        dy*player.speed;
+
+
+    /* ==========================
+       ГРАНИЦЫ КАРТЫ
+    ========================== */
+
+    player.x=
+        Math.max(
+            player.size/2,
+            Math.min(
+                MAP_WIDTH-
+                player.size/2,
+                player.x
+            )
+        );
+
+
+    player.y=
+        Math.max(
+            player.size/2,
+            Math.min(
+                MAP_HEIGHT-
+                player.size/2,
+                player.y
+            )
+        );
+
+
+    /* ==========================
+       АВТОСТРЕЛЬБА НА ТЕЛЕФОНЕ
+    ========================== */
+
+    if(firePressed){
+
+        shoot();
+
+    }
+
+
+    /* ==========================
+       ДВИЖЕНИЕ ЗОМБИ
+    ========================== */
+
+    for(
+        const z of zombies
+    ){
+
+        let dx=
+            player.x-z.x;
+
+        let dy=
+            player.y-z.y;
+
+
+        let d=
+            Math.hypot(dx,dy);
+
+
+        if(d>0){
+
+            z.x+=
+                dx/d*z.speed;
+
+            z.y+=
+                dy/d*z.speed;
+
+        }
+
+
+        /* ==========================
+           УРОН ИГРОКУ
+        ========================== */
+
+        if(
+
+            Math.abs(
+                player.x-z.x
+            )
+            <
+            (
+                player.size+
+                z.size
+            )/2
+
+            &&
+
+            Math.abs(
+                player.y-z.y
+            )
+            <
+            (
+                player.size+
+                z.size
+            )/2
+
+        ){
+
+            player.hp-=
+                z.damage*.015;
+
+
+            if(
+                player.hp<=0
+            ){
+
+                player.hp=0;
+
+                endGame();
+
+                return;
+
+            }
+
+        }
+
+    }
+
+
+    /* ==========================
+       ДВИЖЕНИЕ ПУЛЬ
+    ========================== */
+
+    for(
+        let i=bullets.length-1;
+        i>=0;
+        i--
+    ){
+
+        const b=
+            bullets[i];
+
+
+        b.x+=b.vx;
+
+        b.y+=b.vy;
+
+
+        b.life--;
+
+
+        let hit=false;
+
+
+        /* Проверяем попадание */
+
+        for(
+            let j=zombies.length-1;
+            j>=0;
+            j--
+        ){
+
+            const z=
+                zombies[j];
+
+
+            if(
+
+                Math.abs(
+                    b.x-z.x
+                )
+                <
+                z.size/2+5
+
+                &&
+
+                Math.abs(
+                    b.y-z.y
+                )
+                <
+                z.size/2+5
+
+            ){
+
+                z.hp-=
+                    b.damage;
+
+
+                createParticles(
+                    b.x,
+                    b.y
+                );
+
+
+                hit=true;
+
+
+                if(
+                    z.hp<=0
+                ){
+
+                    killZombie(j);
+
+                }
+
+
+                break;
+
+            }
+
+        }
+
+
+        /* Удаляем пулю */
+
+        if(
+            hit||
+            b.life<=0
+        ){
+
+            bullets.splice(
+                i,
+                1
+            );
+
+        }
+
+    }
+
+
+    /* ==========================
+       ЧАСТИЦЫ
+    ========================== */
+
+    for(
+        let i=particles.length-1;
+        i>=0;
+        i--
+    ){
+
+        const p=
+            particles[i];
+
+
+        p.x+=p.vx;
+
+        p.y+=p.vy;
+
+
+        p.life--;
+
+
+        if(
+            p.life<=0
+        ){
+
+            particles.splice(
+                i,
+                1
+            );
+
+        }
+
+    }
+
+
+    updateCamera();
+
+    updateHUD();
+
+}
+
+
+
+/* =====================================================
    ОТРИСОВКА
-========================= */
+===================================================== */
 
 function draw(){
 
     ctx.clearRect(
         0,
         0,
-        canvas.width,
-        canvas.height
+        W,
+        H
     );
 
 
     /* ФОН */
 
-    ctx.fillStyle="#182018";
+    ctx.fillStyle=
+        "#182018";
+
 
     ctx.fillRect(
         0,
         0,
-        canvas.width,
-        canvas.height
+        W,
+        H
     );
 
 
-    /* ПИКСЕЛЬНАЯ СЕТКА */
+    ctx.save();
 
-    ctx.strokeStyle="rgba(255,255,255,.025)";
+
+    /* Камера */
+
+    ctx.translate(
+        -camera.x,
+        -camera.y
+    );
+
+
+    /* ==========================
+       КАРТА
+    ========================== */
+
+    ctx.fillStyle=
+        "#182018";
+
+
+    ctx.fillRect(
+        0,
+        0,
+        MAP_WIDTH,
+        MAP_HEIGHT
+    );
+
+
+    /* ==========================
+       СЕТКА КАРТЫ
+    ========================== */
+
+    ctx.strokeStyle=
+        "#202b20";
+
+
     ctx.lineWidth=1;
 
-    const grid=40;
+
+    const grid=50;
+
+
+    const startX=
+        Math.floor(
+            camera.x/grid
+        )*grid;
+
+
+    const endX=
+        camera.x+
+        W+
+        grid;
+
 
     for(
-        let x=0;
-        x<canvas.width;
+        let x=startX;
+        x<endX;
         x+=grid
     ){
 
         ctx.beginPath();
-        ctx.moveTo(x,0);
-        ctx.lineTo(x,canvas.height);
+
+        ctx.moveTo(
+            x,
+            camera.y
+        );
+
+        ctx.lineTo(
+            x,
+            camera.y+H
+        );
+
         ctx.stroke();
+
     }
 
+
+    const startY=
+        Math.floor(
+            camera.y/grid
+        )*grid;
+
+
+    const endY=
+        camera.y+
+        H+
+        grid;
+
+
     for(
-        let y=0;
-        y<canvas.height;
+        let y=startY;
+        y<endY;
         y+=grid
     ){
 
         ctx.beginPath();
-        ctx.moveTo(0,y);
-        ctx.lineTo(canvas.width,y);
+
+        ctx.moveTo(
+            camera.x,
+            y
+        );
+
+        ctx.lineTo(
+            camera.x+W,
+            y
+        );
+
         ctx.stroke();
+
     }
 
 
-    if(!playing)return;
+    /* ==========================
+       ПУЛИ
+    ========================== */
 
+    for(
+        const b of bullets
+    ){
 
-    /* МОНЕТКИ / ЭФФЕКТЫ */
+        ctx.fillStyle=
+            "#ffff55";
 
-    for(const p of particles){
-
-        if(p.type==="coin"){
-
-            ctx.fillStyle="#ffd83d";
-
-            ctx.fillRect(
-                p.x-5,
-                p.y-5,
-                10,
-                10
-            );
-
-            ctx.fillStyle="#fff0a0";
-
-            ctx.fillRect(
-                p.x-2,
-                p.y-4,
-                3,
-                3
-            );
-
-        }
-
-        if(p.type==="hit"){
-
-            ctx.fillStyle="#fff";
-
-            ctx.fillRect(
-                p.x-3,
-                p.y-3,
-                6,
-                6
-            );
-
-        }
-
-        if(p.type==="damage"){
-
-            ctx.fillStyle="#ff4444";
-
-            ctx.fillRect(
-                p.x-8,
-                p.y-8,
-                16,
-                16
-            );
-
-        }
-
-        if(p.type==="tesla"){
-
-            ctx.strokeStyle="#b66cff";
-            ctx.lineWidth=3;
-
-            ctx.beginPath();
-
-            ctx.moveTo(
-                player.x,
-                player.y
-            );
-
-            ctx.lineTo(
-                p.x,
-                p.y
-            );
-
-            ctx.stroke();
-
-        }
-    }
-
-
-    /* ЗОМБИ */
-
-    for(const z of zombies){
-
-        /* тело */
-
-        ctx.fillStyle="#5bb85c";
 
         ctx.fillRect(
-            z.x-17,
-            z.y-17,
-            34,
-            34
-        );
-
-        /* голова */
-
-        ctx.fillStyle="#79d879";
-
-        ctx.fillRect(
-            z.x-13,
-            z.y-22,
-            26,
-            22
-        );
-
-        /* глаза */
-
-        ctx.fillStyle="#111";
-
-        ctx.fillRect(
-            z.x-8,
-            z.y-16,
-            5,
-            5
-        );
-
-        ctx.fillRect(
-            z.x+3,
-            z.y-16,
-            5,
-            5
-        );
-
-        /* рот */
-
-        ctx.fillRect(
-            z.x-7,
-            z.y-7,
-            14,
-            4
-        );
-
-
-        /* полоска здоровья */
-
-        const hpWidth=36;
-
-        ctx.fillStyle="#111";
-
-        ctx.fillRect(
-            z.x-hpWidth/2,
-            z.y-30,
-            hpWidth,
-            5
-        );
-
-        ctx.fillStyle="#e33";
-
-        ctx.fillRect(
-            z.x-hpWidth/2,
-            z.y-30,
-            hpWidth*
-            Math.max(0,z.hp/z.maxHp),
-            5
-        );
-    }
-
-
-    /* ИГРОК */
-
-    ctx.fillStyle="#4d83ff";
-
-    ctx.fillRect(
-        player.x-16,
-        player.y-16,
-        32,
-        32
-    );
-
-    ctx.fillStyle="#8eb0ff";
-
-    ctx.fillRect(
-        player.x-11,
-        player.y-20,
-        22,
-        18
-    );
-
-    ctx.fillStyle="#111";
-
-    ctx.fillRect(
-        player.x-7,
-        player.y-15,
-        5,
-        5
-    );
-
-    ctx.fillRect(
-        player.x+3,
-        player.y-15,
-        5,
-        5
-    );
-
-
-    /* НАПРАВЛЕНИЕ ОРУЖИЯ */
-
-    const weapon=weapons[selectedWeapon];
-
-    const angle=Math.atan2(
-        mouseY-player.y,
-        mouseX-player.x
-    );
-
-    if(!weapon.melee){
-
-        ctx.save();
-
-        ctx.translate(
-            player.x,
-            player.y
-        );
-
-        ctx.rotate(angle);
-
-        ctx.fillStyle=weapon.color;
-
-        ctx.fillRect(
+            b.x-4,
+            b.y-4,
             8,
-            -4,
-            25,
             8
         );
 
-        ctx.restore();
-
-    }else{
-
-        ctx.save();
-
-        ctx.translate(
-            player.x,
-            player.y
-        );
-
-        ctx.rotate(angle);
-
-        ctx.fillStyle="#ddd";
-
-        ctx.fillRect(
-            8,
-            -3,
-            25,
-            6
-        );
-
-        ctx.restore();
     }
 
 
-    /* ПУЛИ */
+    /* ==========================
+       ЗОМБИ
+    ========================== */
 
-    for(const b of bullets){
+    for(
+        const z of zombies
+    ){
 
-        ctx.fillStyle=b.color;
+        ctx.fillStyle=
+            z.color;
+
+
+        /* Зомби квадратный */
 
         ctx.fillRect(
-            b.x-b.radius,
-            b.y-b.radius,
-            b.radius*2,
-            b.radius*2
+
+            z.x-z.size/2,
+
+            z.y-z.size/2,
+
+            z.size,
+
+            z.size
+
         );
+
+
+        /* ГЛАЗА */
+
+        ctx.fillStyle=
+            "#111";
+
+
+        const eyeSize=
+            Math.max(
+                4,
+                z.size*.14
+            );
+
+
+        ctx.fillRect(
+
+            z.x-
+            z.size*.27,
+
+            z.y-
+            z.size*.2,
+
+            eyeSize,
+
+            eyeSize
+
+        );
+
+
+        ctx.fillRect(
+
+            z.x+
+            z.size*.12,
+
+            z.y-
+            z.size*.2,
+
+            eyeSize,
+
+            eyeSize
+
+        );
+
+
+        /* ==========================
+           ПОЛОСКА HP
+        ========================== */
+
+        ctx.fillStyle=
+            "#222";
+
+
+        ctx.fillRect(
+
+            z.x-
+            z.size/2,
+
+            z.y-
+            z.size/2-
+            9,
+
+            z.size,
+
+            5
+
+        );
+
+
+        ctx.fillStyle=
+            "#55ff55";
+
+
+        ctx.fillRect(
+
+            z.x-
+            z.size/2,
+
+            z.y-
+            z.size/2-
+            9,
+
+            z.size*
+            Math.max(
+                0,
+                z.hp/z.maxHp
+            ),
+
+            5
+
+        );
+
     }
 
 
-    /* HP ИГРОКА */
+    /* ==========================
+       ИГРОК
+    ========================== */
 
-    const barWidth=70;
+    ctx.fillStyle=
+        "#4da6ff";
 
-    ctx.fillStyle="#111";
-
-    ctx.fillRect(
-        player.x-barWidth/2,
-        player.y+25,
-        barWidth,
-        7
-    );
-
-    ctx.fillStyle="#39d353";
 
     ctx.fillRect(
-        player.x-barWidth/2,
-        player.y+25,
-        barWidth*
-        Math.max(
-            0,
-            player.hp/player.maxHp
-        ),
-        7
+
+        player.x-
+        player.size/2,
+
+        player.y-
+        player.size/2,
+
+        player.size,
+
+        player.size
+
     );
+
+
+    /* ГЛАЗА ИГРОКА */
+
+    ctx.fillStyle=
+        "white";
+
+
+    ctx.fillRect(
+
+        player.x-9,
+
+        player.y-7,
+
+        6,
+
+        6
+
+    );
+
+
+    ctx.fillRect(
+
+        player.x+3,
+
+        player.y-7,
+
+        6,
+
+        6
+
+    );
+
+
+    /* ==========================
+       ЧАСТИЦЫ
+    ========================== */
+
+    for(
+        const p of particles
+    ){
+
+        ctx.fillStyle=
+            "#ffff55";
+
+
+        ctx.fillRect(
+
+            p.x-2,
+
+            p.y-2,
+
+            4,
+
+            4
+
+        );
+
+    }
+
+
+    ctx.restore();
+
+    }
+    /* =====================================================
+   HUD
+===================================================== */
+
+function updateHUD(){
+
+    document.getElementById("coins")
+        .textContent=Math.floor(coins);
+
+    document.getElementById("hp")
+        .textContent=Math.ceil(player.hp);
+
+    document.getElementById("wave")
+        .textContent=wave;
+
+    document.getElementById("zombies")
+        .textContent=zombies.length;
+
+    document.getElementById("weapon")
+        .textContent=getWeapon().name;
+
+    document.getElementById("className")
+        .textContent=selectedClass;
+
 }
+
+
+/* =====================================================
+   МАГАЗИН
+===================================================== */
+
+function openShop(){
+
+    document.getElementById("menu")
+        .style.display="none";
+
+    document.getElementById("shop")
+        .style.display="flex";
+
+    renderShop();
+
+}
+
+
+function closeShop(){
+
+    document.getElementById("shop")
+        .style.display="none";
+
+    document.getElementById("menu")
+        .style.display="flex";
+
+}
+
+
+function renderShop(){
+
+    const box=
+        document.getElementById("shopItems");
+
+    box.innerHTML=
+        `<div style="text-align:center;font-size:20px">
+        💰 Монеты: ${coins}
+        </div>`;
+
+
+    box.innerHTML+=
+        "<h3>🔫 ОРУЖИЕ</h3>";
+
+
+    weapons.forEach(
+        (w,i)=>{
+
+            const owned=
+                ownedWeapons.includes(
+                    w.name
+                );
+
+            box.innerHTML+=`
+
+            <div class="item">
+
+            <b>${w.name}</b><br>
+
+            Цена:
+            ${w.price}
+            💰<br>
+
+            Урон:
+            ${w.damage}<br>
+
+            ${
+                owned
+
+                ?
+
+                `<button onclick="selectWeapon('${w.name}')">
+                ${
+                    selectedWeapon===w.name
+                    ?"✅ Выбрано"
+                    :"Выбрать"
+                }
+                </button>`
+
+                :
+
+                `<button onclick="buyWeapon(${i})">
+                Купить
+                </button>`
+            }
+
+            </div>
+
+            `;
+
+        }
+    );
+
+
+    box.innerHTML+=
+        "<h3>👤 КЛАССЫ</h3>";
+
+
+    classes.forEach(
+        (c,i)=>{
+
+            const owned=
+                ownedClasses.includes(
+                    c.name
+                );
+
+            box.innerHTML+=`
+
+            <div class="item">
+
+            <b>${c.name}</b><br>
+
+            Цена:
+            ${c.price}
+            💰<br>
+
+            Оружие:
+            ${c.weapon}<br>
+
+            Урон:
+            ×${c.damage}<br>
+
+            ${
+                owned
+
+                ?
+
+                `<button onclick="selectClass('${c.name}')">
+                ${
+                    selectedClass===c.name
+                    ?"✅ Выбрано"
+                    :"Выбрать"
+                }
+                </button>`
+
+                :
+
+                `<button onclick="buyClass(${i})">
+                Купить
+                </button>`
+            }
+
+            </div>
+
+            `;
+
+        }
+    );
+
+}
+
+
+/* =====================================================
+   ПОКУПКА ОРУЖИЯ
+===================================================== */
+
+function buyWeapon(i){
+
+    const w=weapons[i];
+
+    if(
+        ownedWeapons.includes(
+            w.name
+        )
+    )return;
+
+    if(
+        coins>=w.price
+    ){
+
+        coins-=w.price;
+
+        ownedWeapons.push(
+            w.name
+        );
+
+        selectedWeapon=
+            w.name;
+
+        save();
+
+        renderShop();
+
+    }
+
+}
+
+
+function selectWeapon(name){
+
+    if(
+        !ownedWeapons.includes(
+            name
+        )
+    )return;
+
+    selectedWeapon=
+        name;
+
+    save();
+
+    renderShop();
+
+}
+
+
+/* =====================================================
+   ПОКУПКА КЛАССА
+===================================================== */
+
+function buyClass(i){
+
+    const c=
+        classes[i];
+
+    if(
+        ownedClasses.includes(
+            c.name
+        )
+    )return;
+
+    if(
+        coins>=c.price
+    ){
+
+        coins-=c.price;
+
+        ownedClasses.push(
+            c.name
+        );
+
+        selectedClass=
+            c.name;
+
+        selectedWeapon=
+            c.weapon;
+
+
+        /*
+          Оружие класса добавляется
+          в коллекцию при покупке класса.
+        */
+
+        if(
+            !ownedWeapons.includes(
+                c.weapon
+            )
+        ){
+
+            ownedWeapons.push(
+                c.weapon
+            );
+
+        }
+
+
+        save();
+
+        renderShop();
+
+    }
+
+}
+
+
+function selectClass(name){
+
+    const c=
+        classes.find(
+            x=>x.name===name
+        );
+
+    if(!c)return;
+
+    selectedClass=
+        name;
+
+    selectedWeapon=
+        c.weapon;
+
+    save();
+
+    renderShop();
+
+}
+
+
+/* =====================================================
+   СМЕНА УСТРОЙСТВА
+===================================================== */
+
+let device="auto";
+
+
+function changeDevice(){
+
+    if(
+        device==="auto"
+    ){
+
+        device="ПК";
+
+    }
+
+    else if(
+        device==="ПК"
+    ){
+
+        device="Телефон";
+
+    }
+
+    else{
+
+        device="auto";
+
+    }
+
+
+    document.getElementById(
+        "deviceInfo"
+    ).textContent=
+        "Устройство: "+device;
+
+
+    updateControls();
+
+}
+
+
+/* =====================================================
+   УПРАВЛЕНИЕ УСТРОЙСТВОМ
+===================================================== */
+
+function updateControls(){
+
+    let mobile=false;
+
+
+    if(
+        device==="Телефон"
+    ){
+
+        mobile=true;
+
+    }
+
+    else if(
+        device==="ПК"
+    ){
+
+        mobile=false;
+
+    }
+
+    else{
+
+        mobile=
+            innerWidth<800;
+
+    }
+
+
+    document.getElementById(
+        "mobileControls"
+    ).style.display=
+        mobile
+        ?"block"
+        :"none";
+
+}
+
+
+/* =====================================================
+   GAME OVER
+===================================================== */
+
+function endGame(){
+
+    gameRunning=
+        false;
+
+
+    document.getElementById(
+        "deathWave"
+    ).textContent=
+        wave;
+
+
+    document.getElementById(
+        "gameOver"
+    ).style.display=
+        "flex";
+
+
+    save();
+
+}
+
+
+function restartGame(){
+
+    document.getElementById(
+        "gameOver"
+    ).style.display=
+        "none";
+
+    startGame();
+
+}
+
+
+function backToMenu(){
+
+    gameRunning=
+        false;
+
+
+    document.getElementById(
+        "gameOver"
+    ).style.display=
+        "none";
+
+
+    document.getElementById(
+        "menu"
+    ).style.display=
+        "flex";
+
+}
+
+
+/* =====================================================
+   ИГРОВОЙ ЦИКЛ
+===================================================== */
+
+function loop(){
+
+    update();
+
+    draw();
+
+    requestAnimationFrame(
+        loop
+    );
+
+}
+
+loop();
+
+
+/* =====================================================
+   ПЕРВИЧНОЕ ОБНОВЛЕНИЕ
+===================================================== */
+
+updateHUD();
+
+updateControls();
+    /* =========================
+   ЧАСТЬ 3
+   HUD + МАГАЗИН + УПРАВЛЕНИЕ
+   + КОНЕЦ ИГРЫ + ЗАПУСК
+========================= */
 
 
 /* =========================
@@ -1871,51 +2883,57 @@ function draw(){
 
 function updateHUD(){
 
-    document.getElementById(
-        "coinsText"
-    ).textContent=coins;
+    if(typeof coinsEl !== "undefined"){
+        coinsEl.textContent = "🪙 " + coins;
+    }
 
-    document.getElementById(
-        "hpText"
-    ).textContent=Math.ceil(player.hp);
+    if(typeof waveEl !== "undefined"){
+        waveEl.textContent = "Волна: " + wave;
+    }
 
-    document.getElementById(
-        "waveText"
-    ).textContent=wave;
+    if(typeof hpEl !== "undefined" && player){
 
-    document.getElementById(
-        "weaponText"
-    ).textContent=
-        weapons[selectedWeapon].name;
+        hpEl.textContent =
+            "❤️ " +
+            Math.max(0, Math.ceil(player.hp)) +
+            "/" +
+            player.maxHp;
+    }
+
+    if(typeof weaponEl !== "undefined"){
+
+        weaponEl.textContent =
+            "🔫 " +
+            getWeapon().name;
+    }
 }
 
 
 /* =========================
-   GAME OVER
+   ОТКРЫТЬ МАГАЗИН
 ========================= */
 
-function gameOver(){
+function openShop(){
 
-    playing=false;
+    menu.style.display = "none";
 
-    mouseDown=false;
-    mobileFire=false;
+    shop.style.display = "flex";
 
-    stopJoystick();
+    renderShop();
+}
 
-    save();
 
-    document.getElementById(
-        "deadWave"
-    ).textContent=wave;
+/* =========================
+   ЗАКРЫТЬ МАГАЗИН
+========================= */
 
-    document.getElementById(
-        "gameOver"
-    ).style.display="flex";
+function closeShop(){
 
-    document.getElementById(
-        "mobileControls"
-    ).style.display="none";
+    shop.style.display = "none";
+
+    menu.style.display = "flex";
+
+    updateHUD();
 }
 
 
@@ -1923,345 +2941,481 @@ function gameOver(){
    МАГАЗИН
 ========================= */
 
-function openShop(){
+function renderShop(){
 
-    hideAll();
+    shop.innerHTML = "";
 
-    const list=
-        document.getElementById(
-            "shopList"
-        );
+    let title = document.createElement("h2");
 
-    list.innerHTML="";
+    title.textContent = "🛒 МАГАЗИН";
+
+    shop.appendChild(title);
+
+
+    let money = document.createElement("div");
+
+    money.textContent =
+        "🪙 Монеты: " + coins;
+
+    money.style.marginBottom = "15px";
+
+    shop.appendChild(money);
+
+
+    /* =====================
+       ОРУЖИЕ
+    ===================== */
+
+    let weaponTitle =
+        document.createElement("h3");
+
+    weaponTitle.textContent =
+        "🔫 ОРУЖИЕ";
+
+    shop.appendChild(weaponTitle);
+
 
     weapons.forEach((w,i)=>{
 
-        const div=
-            document.createElement("div");
+        let button =
+            document.createElement("button");
 
-        div.className="item";
 
-        if(
-            selectedWeapon===i
-        ){
-            div.classList.add("selected");
-        }
-
-        if(
-            !ownedWeapons[i]
-        ){
-            div.classList.add("locked");
-        }
-
-        let buttonText;
+        /*
+           Если оружие уже куплено —
+           можно его выбрать.
+        */
 
         if(ownedWeapons[i]){
 
-            buttonText=
-                selectedWeapon===i
-                ?"ВЫБРАНО"
-                :"ВЫБРАТЬ";
+            button.textContent =
+                w.name +
+                " | Урон: " +
+                w.damage +
+                " | ВЫБРАТЬ";
+
+            if(selectedWeapon === w.name){
+
+                button.textContent +=
+                    " ✅";
+            }
+
+            button.onclick = function(){
+
+                selectWeapon(i);
+            };
 
         }else{
 
-            buttonText=
-                "КУПИТЬ";
+            button.textContent =
+                w.name +
+                " | Урон: " +
+                w.damage +
+                " | 🪙 " +
+                w.price;
+
+            button.onclick = function(){
+
+                buyWeapon(i);
+            };
         }
 
-        div.innerHTML=`
 
-            <div class="itemInfo">
-
-                <div class="itemName">
-                    ${w.name}
-                </div>
-
-                <div>
-                    Урон: ${w.damage}
-                </div>
-
-                <div class="price">
-                    💰 ${w.price}
-                </div>
-
-            </div>
-
-            <button
-                onclick="shopAction(${i})"
-            >
-                ${buttonText}
-            </button>
-
-        `;
-
-        list.appendChild(div);
+        shop.appendChild(button);
 
     });
 
-    document.getElementById(
-        "shop"
-    ).style.display="flex";
-}
 
+    /* =====================
+       КЛАССЫ
+    ===================== */
 
-function shopAction(i){
+    let classTitle =
+        document.createElement("h3");
 
-    if(ownedWeapons[i]){
+    classTitle.textContent =
+        "🧍 КЛАССЫ";
 
-        selectedWeapon=i;
+    shop.appendChild(classTitle);
 
-        save();
-
-        openShop();
-
-        updateHUD();
-
-        return;
-    }
-
-    const price=weapons[i].price;
-
-    if(coins>=price){
-
-        coins-=price;
-
-        ownedWeapons[i]=true;
-
-        selectedWeapon=i;
-
-        save();
-
-        openShop();
-
-        updateMenu();
-
-    }else{
-
-        alert(
-            "Недостаточно монет!"
-        );
-    }
-}
-
-
-/* =========================
-   КЛАССЫ
-========================= */
-
-function openClasses(){
-
-    hideAll();
-
-    const list=
-        document.getElementById(
-            "classList"
-        );
-
-    list.innerHTML="";
 
     classes.forEach((c,i)=>{
 
-        const div=
-            document.createElement("div");
+        let button =
+            document.createElement("button");
 
-        div.className="item";
 
-        if(
-            selectedClass===i
-        ){
-
-            div.classList.add(
-                "selected"
-            );
-        }
-
-        if(
-            !ownedClasses[i]
-        ){
-
-            div.classList.add(
-                "locked"
-            );
-        }
-
-        let buttonText;
+        /*
+           Класс покупается вместе
+           со своим оружием.
+        */
 
         if(ownedClasses[i]){
 
-            buttonText=
-                selectedClass===i
-                ?"ВЫБРАН"
-                :"ВЫБРАТЬ";
+            button.textContent =
+                c.name +
+                " | Скорость: " +
+                c.speed +
+                " | Оружие: " +
+                c.weapon +
+                " | ВЫБРАТЬ";
+
+
+            if(selectedClass === c.name){
+
+                button.textContent +=
+                    " ✅";
+            }
+
+
+            button.onclick = function(){
+
+                selectClass(i);
+            };
 
         }else{
 
-            buttonText="КУПИТЬ";
+            button.textContent =
+                c.name +
+                " | 🪙 " +
+                c.price +
+                " | " +
+                c.weapon;
+
+
+            button.onclick = function(){
+
+                buyClass(i);
+            };
         }
 
-        div.innerHTML=`
 
-            <div class="itemInfo">
-
-                <div class="itemName">
-                    ${c.name}
-                </div>
-
-                <div>
-                    Оружие: ${c.weapon}
-                </div>
-
-                <div>
-                    Скорость: ${c.speed}
-                </div>
-
-                <div class="price">
-                    💰 ${c.price}
-                </div>
-
-            </div>
-
-            <button
-                onclick="classAction(${i})"
-            >
-                ${buttonText}
-            </button>
-
-        `;
-
-        list.appendChild(div);
+        shop.appendChild(button);
 
     });
 
-    document.getElementById(
-        "classes"
-    ).style.display="flex";
+
+    /* =====================
+       КНОПКА НАЗАД
+    ===================== */
+
+    let back =
+        document.createElement("button");
+
+    back.textContent =
+        "⬅ НАЗАД";
+
+    back.onclick = closeShop;
+
+    shop.appendChild(back);
 }
 
 
-function classAction(i){
+/* =========================
+   ПОКУПКА ОРУЖИЯ
+========================= */
 
-    if(ownedClasses[i]){
+function buyWeapon(i){
 
-        selectedClass=i;
+    let w = weapons[i];
 
-        /* Класс даёт своё оружие,
-           если оно уже есть */
 
-        const weaponIndex=
-            weapons.findIndex(
-                w=>
-                    w.name===
-                    classes[i].weapon
-            );
+    /* Уже куплено */
 
-        if(
-            weaponIndex>=0 &&
-            ownedWeapons[weaponIndex]
-        ){
+    if(ownedWeapons[i]){
 
-            selectedWeapon=
-                weaponIndex;
-        }
-
-        saveClasses();
-
-        openClasses();
+        selectWeapon(i);
 
         return;
     }
 
 
-    const price=
-        classes[i].price;
+    /* Проверка денег */
 
-    if(coins>=price){
+    if(coins < w.price){
 
-        coins-=price;
+        alert("Не хватает монет!");
 
-        ownedClasses[i]=true;
+        return;
+    }
 
-        selectedClass=i;
 
-        const weaponIndex=
-            weapons.findIndex(
-                w=>
-                    w.name===
-                    classes[i].weapon
-            );
+    /* Покупка */
 
-        if(
-            weaponIndex>=0
-        ){
+    coins -= w.price;
 
-            ownedWeapons[
-                weaponIndex
-            ]=true;
+    ownedWeapons[i] = true;
 
-            selectedWeapon=
-                weaponIndex;
-        }
 
-        saveClasses();
+    save();
 
-        openClasses();
 
-        updateMenu();
+    /* Сразу выбираем оружие */
+
+    selectWeapon(i);
+
+
+    renderShop();
+
+    updateHUD();
+}
+
+
+/* =========================
+   ВЫБОР ОРУЖИЯ
+========================= */
+
+function selectWeapon(i){
+
+    if(!ownedWeapons[i]){
+
+        return;
+    }
+
+
+    selectedWeapon =
+        weapons[i].name;
+
+
+    save();
+
+    updateHUD();
+
+    renderShop();
+}
+
+
+/* =========================
+   ПОКУПКА КЛАССА
+   + ЕГО ОРУЖИЯ
+========================= */
+
+function buyClass(i){
+
+    let c = classes[i];
+
+
+    /* Уже куплен */
+
+    if(ownedClasses[i]){
+
+        selectClass(i);
+
+        return;
+    }
+
+
+    /* Проверяем монеты */
+
+    if(coins < c.price){
+
+        alert("Не хватает монет!");
+
+        return;
+    }
+
+
+    /* Покупаем класс */
+
+    coins -= c.price;
+
+    ownedClasses[i] = true;
+
+
+    /*
+       Класс автоматически даёт
+       своё оружие.
+    */
+
+    let weaponIndex =
+        weapons.findIndex(
+            w => w.name === c.weapon
+        );
+
+
+    if(weaponIndex >= 0){
+
+        ownedWeapons[weaponIndex] = true;
+    }
+
+
+    save();
+
+
+    /* Сразу выбираем класс */
+
+    selectClass(i);
+
+
+    renderShop();
+
+    updateHUD();
+}
+
+
+/* =========================
+   ВЫБОР КЛАССА
+========================= */
+
+function selectClass(i){
+
+    if(!ownedClasses[i]){
+
+        return;
+    }
+
+
+    let c = classes[i];
+
+
+    selectedClass =
+        c.name;
+
+
+    /*
+       Оружие класса автоматически
+       становится активным.
+    */
+
+    selectedWeapon =
+        c.weapon;
+
+
+    /* Скорость */
+
+    player.speed =
+        c.speed;
+
+
+    /* Здоровье */
+
+    if(c.maxHp){
+
+        player.maxHp =
+            c.maxHp;
+
+        player.hp =
+            c.maxHp;
 
     }else{
 
-        alert(
-            "Недостаточно монет!"
-        );
+        player.maxHp =
+            100;
+
+        player.hp =
+            Math.min(
+                player.hp,
+                player.maxHp
+            );
+    }
+
+
+    save();
+
+    updateHUD();
+
+    renderShop();
+}
+
+
+/* =========================
+   СМЕНИТЬ УСТРОЙСТВО
+========================= */
+
+function changeDevice(){
+
+    if(device === "pc"){
+
+        device = "mobile";
+
+    }else{
+
+        device = "pc";
+    }
+
+
+    localStorage.setItem(
+        "pixelZombieDevice",
+        device
+    );
+
+
+    updateControls();
+}
+
+
+/* =========================
+   ОБНОВЛЕНИЕ УПРАВЛЕНИЯ
+========================= */
+
+function updateControls(){
+
+    if(device === "mobile"){
+
+        mobileControls.style.display =
+            "block";
+
+    }else{
+
+        mobileControls.style.display =
+            "none";
     }
 }
 
 
 /* =========================
-   ВОЗВРАТ В МЕНЮ
+   КОНЕЦ ИГРЫ
+========================= */
+
+function endGame(){
+
+    gameRunning = false;
+
+
+    gameOver.style.display =
+        "flex";
+
+
+    save();
+}
+
+
+/* =========================
+   ПЕРЕЗАПУСК
+========================= */
+
+function restartGame(){
+
+    gameOver.style.display =
+        "none";
+
+
+    startGame();
+}
+
+
+/* =========================
+   В МЕНЮ
 ========================= */
 
 function backToMenu(){
 
-    playing=false;
-
-    mouseDown=false;
-    mobileFire=false;
-
-    stopJoystick();
-
-    hideAll();
-
-    document.getElementById(
-        "menu"
-    ).style.display="flex";
-
-    applyDevice();
-
-    updateMenu();
-}
+    gameRunning = false;
 
 
-/* =========================
-   ПРИЦЕЛ
-========================= */
+    gameOver.style.display =
+        "none";
 
-function showCrosshair(){
 
-    if(isMobile())return;
+    shop.style.display =
+        "none";
 
-    const crosshair=
-        document.getElementById(
-            "crosshair"
-        );
 
-    crosshair.style.display=
-        "block";
+    menu.style.display =
+        "flex";
 
-    crosshair.style.left=
-        mouseX+"px";
 
-    crosshair.style.top=
-        mouseY+"px";
+    updateHUD();
 }
 
 
@@ -2269,15 +3423,13 @@ function showCrosshair(){
    ИГРОВОЙ ЦИКЛ
 ========================= */
 
-function gameLoop(){
+function loop(){
 
     update();
 
     draw();
 
-    requestAnimationFrame(
-        gameLoop
-    );
+    requestAnimationFrame(loop);
 }
 
 
@@ -2285,13 +3437,8 @@ function gameLoop(){
    ЗАПУСК
 ========================= */
 
-updateMenu();
+updateHUD();
 
-applyDevice();
+updateControls();
 
-gameLoop();
-
-</script>
-
-</body>
-</html>
+loop();
