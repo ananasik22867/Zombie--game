@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pixel Zombie</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;overflow:hidden;background:#101510;color:#fff;font-family:monospace;touch-action:none}
+canvas{display:block;background:#182218;image-rendering:pixelated}
+#menu,#shop,#classes,#over,#deviceMenu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#101510ee;text-align:center;z-index:5}
+.hidden{display:none!important}h1{color:#8fdf62;text-shadow:3px 3px #263b20}button{font:inherit;font-weight:bold;padding:12px 18px;border:2px solid #8fdf62;background:#263b20;color:white;border-radius:6px;cursor:pointer}button:disabled{opacity:.4}
+#hud{position:fixed;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;pointer-events:none;z-index:2}
+#mobile{position:fixed;inset:0;pointer-events:none;z-index:3}.pad{position:absolute;bottom:25px;width:125px;height:125px;border:2px solid #ffffff55;border-radius:50%;pointer-events:auto}.pad:after{content:"";position:absolute;left:37px;top:37px;width:46px;height:46px;background:#ffffff55;border-radius:50%}#joy{left:20px}#shoot{right:20px}#fire{position:absolute;right:45px;bottom:165px;pointer-events:auto}
+#change{position:absolute;right:20px;top:55px;pointer-events:auto}
+.card{border:1px solid #8fdf62;padding:10px;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud" class="hidden"><span id="stats"></span><span id="wave"></span></div>
+<div id="menu">
+<h1>☣ PIXEL ZOMBIE</h1><p>Уничтожай зомби и собирай монеты</p>
+<button id="start">ИГРАТЬ</button><button id="shopBtn">МАГАЗИН</button><button id="classBtn">КЛАССЫ</button><button id="deviceBtn">СМЕНИТЬ УСТРОЙСТВО</button>
+</div>
+<div id="deviceMenu" class="hidden"><h2>На чём играешь?</h2><button data-device="pc">💻 ПК</button><button data-device="phone">📱 ТЕЛЕФОН</button></div>
+<div id="shop" class="hidden"><h2>МАГАЗИН</h2><div id="shopList"></div><button class="back">НАЗАД</button></div>
+<div id="classes" class="hidden"><h2>КЛАССЫ</h2><div id="classList"></div><button class="back">НАЗАД</button></div>
+<div id="over" class="hidden"><h1>ТЫ ПОГИБ</h1><p id="result"></p><button id="again">ЕЩЁ РАЗ</button><button class="back">В МЕНЮ</button></div>
+<div id="mobile" class="hidden"><div id="joy" class="pad"></div><div id="shoot" class="pad"></div><button id="fire">🔥 СТРЕЛЯТЬ</button><button id="change">🔄</button></div>
+<script>
+const c=document.getElementById('game'),x=c.getContext('2d');let W,H,run=false,device=localStorage.pz_device||'',keys={},joy={x:0,y:0},shooting=false,player,zombies=[],bullets=[],coins=+(localStorage.pz_coins||0),wave=1,kills=0,owned=JSON.parse(localStorage.pz_weapons||'["Нож"]'),weapon=localStorage.pz_selectedWeapon||'Нож',cls=localStorage.pz_class||'Обычный';
+const weapons=[['Нож',0,20],['Старый пистолет',100,28],['Золотой старый пистолет',0,35],['Золотой револьвер',0,48],['Золотой дробовик',0,70],['Золотая ракетница',0,100],['Пушка Теслы',0,90],['Оружие бога',0,130]];
+const classes=[['Обычный',50,'Нож',100],['Быстрый',500,'Золотой старый пистолет',120],['Танк',1500,'Золотой револьвер',230],['Стрелок',3000,'Золотой дробовик',150],['Подрывник',5000,'Золотая ракетница',250],['Тесла',8000,'Пушка Теслы',330],['Легенда',13000,'Оружие бога',300]];
+function save(){localStorage.pz_coins=coins;localStorage.pz_weapons=JSON.stringify(owned);localStorage.pz_selectedWeapon=weapon;localStorage.pz_class=cls}
+function show(id){['menu','shop','classes','over','deviceMenu'].forEach(a=>document.getElementById(a).classList.toggle('hidden',a!==id));document.getElementById('hud').classList.add('hidden');document.getElementById('mobile').classList.add('hidden')}
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight}addEventListener('resize',resize);resize();
+document.getElementById('start').onclick=()=>{if(!device)show('deviceMenu');else start()};document.getElementById('deviceBtn').onclick=()=>show('deviceMenu');
+document.querySelectorAll('[data-device]').forEach(b=>b.onclick=()=>{device=b.dataset.device;localStorage.pz_device=device;show('menu')});
+document.getElementById('shopBtn').onclick=()=>{renderShop();show('shop')};document.getElementById('classBtn').onclick=()=>{renderClasses();show('classes')};
+document.querySelectorAll('.back').forEach(b=>b.onclick=()=>show('menu'));document.getElementById('again').onclick=start;
+function renderShop(){shopList.innerHTML=weapons.filter(w=>w[1]>0).map(w=>`<div class="card">${w[0]} — ${w[1]} монет, урон ${w[2]}<br><button ${owned.includes(w[0])?'disabled':''} onclick="buy('${w[0]}',${w[1]})">${owned.includes(w[0])?'КУПЛЕНО':'КУПИТЬ'}</button></div>`).join('')}
+function buy(n,p){if(coins>=p&&!owned.includes(n)){coins-=p;owned.push(n);save();renderShop()}}
+function renderClasses(){classList.innerHTML=classes.map(a=>`<div class="card">${a[0]} — ${a[1]} монет<br>❤️ ${a[3]} | ${a[2]}<br><button onclick="chooseClass('${a[0]}')">${cls===a[0]?'ВЫБРАН':'ВЫБРАТЬ'}</button></div>`).join('')}
+function chooseClass(n){let a=classes.find(q=>q[0]===n);if(cls===n)return;if(coins>=a[1]){coins-=a[1];cls=n;weapon=a[2];if(!owned.includes(weapon))owned.push(weapon);save();renderClasses()}}
+function start(){show('menu');document.getElementById('menu').classList.add('hidden');document.getElementById('hud').classList.remove('hidden');if(device==='phone')document.getElementById('mobile').classList.remove('hidden');player={x:W/2,y:H/2,hp:classes.find(a=>a[0]===cls)[3]};zombies=[];bullets=[];wave=1;kills=0;run=true;spawn();requestAnimationFrame(loop)}
+function spawn(){for(let i=0;i<wave+2;i++){let side=Math.floor(Math.random()*4);zombies.push({x:side%2?Math.random()*W:side<2?0:W,y:side%2?side<2?0:H:Math.random()*H,hp:40+wave*8,s:18})}}
+function fire(tx,ty){let ang=Math.atan2(ty-player.y,tx-player.x);bullets.push({x:player.x,y:player.y,vx:Math.cos(ang)*8,vy:Math.sin(ang)*8,d:weapons.find(w=>w[0]===weapon)?.[2]||20})}
+function loop(){if(!run)return;x.fillStyle='#182218';x.fillRect(0,0,W,H);let dx=(keys.d?1:0)-(keys.a?1:0)+joy.x,dy=(keys.s?1:0)-(keys.w?1:0)+joy.y;player.x=Math.max(10,Math.min(W-10,player.x+dx*3));player.y=Math.max(10,Math.min(H-10,player.y+dy*3));
+x.fillStyle='#8fdf62';x.fillRect(player.x-10,player.y-10,20,20);
+for(let z of zombies){let a=Math.atan2(player.y-z.y,player.x-z.x);z.x+=Math.cos(a)*.45;z.y+=Math.sin(a)*.45;x.fillStyle='#b54b55';x.fillRect(z.x-9,z.y-9,18,18);if(Math.hypot(z.x-player.x,z.y-player.y)<20)player.hp-=.08}
+for(let b of bullets){b.x+=b.vx;b.y+=b.vy;x.fillStyle='#ffe36b';x.fillRect(b.x-3,b.y-3,6,6);for(let z of zombies)if(Math.hypot(b.x-z.x,b.y-z.y)<15){z.hp-=b.d;b.x=-100;if(z.hp<=0){z.dead=true;coins++;kills++}}}
+zombies=zombies.filter(z=>!z.dead&&z.x>-50&&z.x<W+50&&z.y>-50&&z.y<H+50);bullets=bullets.filter(b=>b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10);
+if(!zombies.length){wave++;spawn()}stats.textContent=`❤️ ${Math.max(0,Math.floor(player.hp))}  🪙 ${coins}  ☠ ${kills}`;document.getElementById('wave').textContent='ВОЛНА '+wave;
+if(player.hp<=0){run=false;save();result.textContent=`Убито: ${kills} | Волна: ${wave}`;show('over');return}requestAnimationFrame(loop)}
+addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+c.addEventListener('pointerdown',e=>{if(run&&device!=='phone')fire(e.clientX,e.clientY)});document.getElementById('fire').onpointerdown=()=>{if(run)fire(player.x+1,player.y)};
+document.getElementById('shoot').onpointerdown=()=>shooting=true;document.getElementById('shoot').onpointerup=()=>shooting=false;
+setInterval(()=>{if(run&&shooting)fire(player.x+Math.random()*2-1,player.y-100)},250);
+let jd=document.getElementById('joy');jd.onpointermove=e=>{let r=jd.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;joy.x=Math.max(-1,Math.min(1,(e.clientX-cx)/45));joy.y=Math.max(-1,Math.min(1,(e.clientY-cy)/45))};jd.onpointerup=jd.onpointercancel=()=>joy={x:0,y:0};
+</script>
+</body></html>
